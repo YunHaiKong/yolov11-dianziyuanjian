@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试模型加载</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>测试模型加载</h1>
+    
+    <div>
+        <h2>模型列表</h2>
+        <select id="model-select">
+            <option value="">选择模型...</option>
+        </select>
+    </div>
+    
+    <div id="model-info" style="margin-top: 20px;">
+        <h2>模型信息</h2>
+        <pre id="info-display"></pre>
+    </div>
+    
+    <script>
+        $(document).ready(function() {
+            // 显示调试信息
+            $('#info-display').text('正在加载模型列表...');
+            
+            // 加载模型列表
+            $.ajax({
+                url: '/api/models',
+                type: 'GET',
+                success: function(data) {
+                    console.log('模型数据:', data);
+                    $('#info-display').append('\n\n获取到模型数据: ' + JSON.stringify(data, null, 2));
+                    
+                    const select = $('#model-select');
+                    select.empty().append('<option value="">选择模型...</option>');
+                    
+                    if (data.models && data.models.length > 0) {
+                        data.models.forEach(model => {
+                            select.append(`<option value="${model.path}">${model.name} (${model.type})</option>`);
+                            $('#info-display').append('\n添加模型: ' + model.name + ', 路径: ' + model.path);
+                        });
+                        
+                        $('#info-display').append('\n\n成功加载 ' + data.models.length + ' 个模型');
+                    } else {
+                        $('#info-display').append('\n\n没有找到模型或返回数据格式不正确');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('加载模型失败:', error);
+                    $('#info-display').append('\n\n加载模型失败: ' + status + ' - ' + error + '\n' + xhr.responseText);
+                }
+            });
+            
+            // 选择模型时获取详细信息
+            $('#model-select').on('change', function() {
+                const modelPath = $(this).val();
+                if (!modelPath) return;
+                
+                // 尝试不同的编码方式
+                const encodedPath = encodeURIComponent(modelPath);
+                const encodedPathComponent = encodeURIComponent(modelPath);
+                const rawPath = modelPath;
+                
+                $('#info-display').text('正在获取模型信息...\n');
+                $('#info-display').append('原始路径: ' + modelPath + '\n');
+                $('#info-display').append('编码后路径(URI): ' + encodedPath + '\n');
+                $('#info-display').append('编码后路径(Component): ' + encodedPathComponent + '\n');
+                
+                // 尝试使用不同的路径格式
+                const pathToUse = encodedPath;
+                $('#info-display').append('使用的路径: ' + pathToUse + '\n\n');
+                
+                // 记录请求URL
+                const requestUrl = `/api/model_info/${pathToUse}`;
+                $('#info-display').append('请求URL: ' + requestUrl + '\n');
+                
+                $.ajax({
+                    url: requestUrl,
+                    type: 'GET',
+                    success: function(data) {
+                        console.log('模型详情:', data);
+                        $('#info-display').append('\n获取到模型详情: ' + JSON.stringify(data, null, 2));
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('获取模型信息失败:', error);
+                        $('#info-display').append('\n\n获取模型信息失败:\n');
+                        $('#info-display').append('状态: ' + status + '\n');
+                        $('#info-display').append('错误: ' + error + '\n');
+                        $('#info-display').append('响应文本: ' + xhr.responseText + '\n');
+                        
+                        // 尝试解析错误响应
+                        try {
+                            const errorData = JSON.parse(xhr.responseText);
+                            $('#info-display').append('\n错误详情: ' + JSON.stringify(errorData, null, 2) + '\n');
+                        } catch (e) {
+                            $('#info-display').append('\n无法解析错误响应为JSON\n');
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

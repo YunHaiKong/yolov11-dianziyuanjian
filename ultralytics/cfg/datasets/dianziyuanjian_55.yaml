@@ -1,0 +1,5 @@
+path: E:\LLM-Project\yolov11-电子元件\datesets\dianziyuanjian_55
+train: train
+val: val
+nc: 5
+names: ['聚酯电容', '热敏电阻', '三极管完好', '三极管缺失', '三极管弯曲']

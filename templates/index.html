@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - YOLO电子元件检测系统{% endblock %}
+
+{% block page_title %}系统概览{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- 系统状态卡片 -->
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card metric-card">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">训练项目</div>
+                        <div class="h5 mb-0 font-weight-bold" id="total-projects">-</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-project-diagram fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card metric-card">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">可用模型</div>
+                        <div class="h5 mb-0 font-weight-bold" id="total-models">-</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-brain fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card metric-card">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">数据集</div>
+                        <div class="h5 mb-0 font-weight-bold" id="total-datasets">-</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-database fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card metric-card">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">系统状态</div>
+                        <div class="h5 mb-0 font-weight-bold">正常运行</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-check-circle fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 快速操作 -->
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="fas fa-rocket"></i> 快速操作</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <a href="{{ url_for('training') }}" class="btn btn-primary btn-lg w-100">
+                            <i class="fas fa-chart-line"></i><br>
+                            <small>训练监控</small>
+                        </a>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <a href="{{ url_for('prediction') }}" class="btn btn-success btn-lg w-100">
+                            <i class="fas fa-search"></i><br>
+                            <small>模型预测</small>
+                        </a>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <a href="{{ url_for('analysis') }}" class="btn btn-info btn-lg w-100">
+                            <i class="fas fa-chart-pie"></i><br>
+                            <small>数据分析</small>
+                        </a>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <a href="{{ url_for('comparison') }}" class="btn btn-warning btn-lg w-100">
+                            <i class="fas fa-balance-scale"></i><br>
+                            <small>模型比较</small>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 最近训练结果 -->
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="fas fa-history"></i> 最近训练</h5>
+            </div>
+            <div class="card-body">
+                <div id="recent-training">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 系统信息 -->
+    <div class="col-lg-8 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="fas fa-info-circle"></i> 系统信息</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>支持的检测类别：</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="fas fa-circle text-primary"></i> 聚酯电容</li>
+                            <li><i class="fas fa-circle text-success"></i> 热敏电阻</li>
+                            <li><i class="fas fa-circle text-info"></i> 三极管完好</li>
+                            <li><i class="fas fa-circle text-warning"></i> 三极管缺失</li>
+                            <li><i class="fas fa-circle text-danger"></i> 三极管弯曲</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>系统特性：</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="fas fa-check text-success"></i> 实时训练监控</li>
+                            <li><i class="fas fa-check text-success"></i> 多模型比较</li>
+                            <li><i class="fas fa-check text-success"></i> 在线预测</li>
+                            <li><i class="fas fa-check text-success"></i> 数据集分析</li>
+                            <li><i class="fas fa-check text-success"></i> 可视化界面</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 使用指南 -->
+    <div class="col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="fas fa-question-circle"></i> 使用指南</h5>
+            </div>
+            <div class="card-body">
+                <div class="accordion" id="helpAccordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingOne">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne">
+                                如何开始训练？
+                            </button>
+                        </h2>
+                        <div id="collapseOne" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
+                            <div class="accordion-body">
+                                1. 准备数据集<br>
+                                2. 运行训练脚本<br>
+                                3. 在训练监控页面查看进度
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingTwo">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo">
+                                如何使用预测功能？
+                            </button>
+                        </h2>
+                        <div id="collapseTwo" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
+                            <div class="accordion-body">
+                                1. 选择训练好的模型<br>
+                                2. 上传待检测图片<br>
+                                3. 查看检测结果
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // 加载系统统计信息
+    loadSystemStats();
+    loadRecentTraining();
+});
+
+function loadSystemStats() {
+    // 模拟加载统计数据
+    setTimeout(function() {
+        $('#total-projects').text('5');
+        $('#total-models').text('12');
+        $('#total-datasets').text('3');
+    }, 1000);
+}
+
+function loadRecentTraining() {
+    // 加载最近的训练结果
+    $.get('/api/training_results/Dianziyuanjian_5/train', function(data) {
+        let html = '';
+        if (data.metrics && data.metrics.length > 0) {
+            let lastMetric = data.metrics[data.metrics.length - 1];
+            html = `
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>最新训练：Dianziyuanjian_5</span>
+                    <span class="badge bg-success">完成</span>
+                </div>
+                <div class="progress mb-2">
+                    <div class="progress-bar" style="width: 100%"></div>
+                </div>
+                <small class="text-muted">
+                    mAP50: ${(lastMetric['metrics/mAP50(B)'] || 0).toFixed(3)} | 
+                    mAP50-95: ${(lastMetric['metrics/mAP50-95(B)'] || 0).toFixed(3)}
+                </small>
+            `;
+        } else {
+            html = '<p class="text-muted">暂无训练记录</p>';
+        }
+        $('#recent-training').html(html);
+    }).fail(function() {
+        $('#recent-training').html('<p class="text-muted">暂无训练记录</p>');
+    });
+}
+</script>
+{% endblock %}

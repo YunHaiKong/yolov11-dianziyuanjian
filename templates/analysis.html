@@ -1,0 +1,443 @@
+{% extends "base.html" %}
+
+{% block title %}数据分析 - YOLO电子元件检测系统{% endblock %}
+
+{% block page_title %}数据集分析{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- 数据集选择 -->
+    <div class="col-lg-3 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="fas fa-database"></i> 数据集</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group" id="dataset-list">
+                    <button type="button" class="list-group-item list-group-item-action" 
+                            onclick="analyzeDataset('dianziyuanjian_4')">
+                        <i class="fas fa-folder"></i> dianziyuanjian_4
+                        <small class="text-muted d-block">4类电子元件</small>
+                    </button>
+                    <button type="button" class="list-group-item list-group-item-action" 
+                            onclick="analyzeDataset('dianziyuanjian_5')">
+                        <i class="fas fa-folder"></i> dianziyuanjian_5
+                        <small class="text-muted d-block">5类电子元件</small>
+                    </button>
+                    <button type="button" class="list-group-item list-group-item-action" 
+                            onclick="analyzeDataset('dianziyuanjian_55')">
+                        <i class="fas fa-folder"></i> dianziyuanjian_55
+                        <small class="text-muted d-block">扩展数据集</small>
+                    </button>
+                    <button type="button" class="list-group-item list-group-item-action" 
+                            onclick="analyzeDataset('dianziyuanjian_555')">
+                        <i class="fas fa-folder"></i> dianziyuanjian_555
+                        <small class="text-muted d-block">增强数据集</small>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 分析选项 -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="fas fa-cog"></i> 分析选项</h5>
+            </div>
+            <div class="card-body">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="show-class-distribution" checked>
+                    <label class="form-check-label" for="show-class-distribution">
+                        类别分布
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="show-image-stats" checked>
+                    <label class="form-check-label" for="show-image-stats">
+                        图片统计
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="show-size-distribution" checked>
+                    <label class="form-check-label" for="show-size-distribution">
+                        尺寸分布
+                    </label>
+                </div>
+                <button class="btn btn-primary btn-sm mt-3 w-100" onclick="refreshAnalysis()">
+                    <i class="fas fa-sync-alt"></i> 刷新分析
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 分析结果 -->
+    <div class="col-lg-9">
+        <div id="analysis-results">
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="fas fa-chart-pie fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">选择一个数据集开始分析</h5>
+                    <p class="text-muted">分析数据集的类别分布、图片统计和尺寸分布</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentDataset = null;
+let analysisData = null;
+let classChart = null;
+let sizeChart = null;
+
+function analyzeDataset(datasetName) {
+    currentDataset = datasetName;
+    
+    // 更新选中状态
+    $('.list-group-item').removeClass('active');
+    $(event.target).closest('.list-group-item').addClass('active');
+    
+    // 显示加载状态
+    $('#analysis-results').html(`
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">分析中...</span>
+                </div>
+                <p class="mt-2">正在分析数据集 ${datasetName}...</p>
+            </div>
+        </div>
+    `);
+    
+    // 请求分析数据
+    $.get(`/api/dataset_analysis/${datasetName}`, function(data) {
+        analysisData = data;
+        displayAnalysisResults(data);
+    }).fail(function() {
+        $('#analysis-results').html(`
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                    <h5 class="text-warning">分析失败</h5>
+                    <p class="text-muted">无法分析数据集 ${datasetName}</p>
+                </div>
+            </div>
+        `);
+    });
+}
+
+function displayAnalysisResults(data) {
+    const resultsHtml = `
+        <div class="row">
+            <!-- 基本统计 -->
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-info-circle"></i> 
+                            数据集概览 - ${data.dataset_name}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="card bg-primary text-white">
+                                    <div class="card-body text-center">
+                                        <h4>${data.train_images}</h4>
+                                        <small>训练图片</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-success text-white">
+                                    <div class="card-body text-center">
+                                        <h4>${data.val_images}</h4>
+                                        <small>验证图片</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-info text-white">
+                                    <div class="card-body text-center">
+                                        <h4>${data.train_images + data.val_images}</h4>
+                                        <small>总图片数</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-warning text-white">
+                                    <div class="card-body text-center">
+                                        <h4>${Object.keys(data.class_distribution).length}</h4>
+                                        <small>类别数量</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 类别分布 -->
+            <div class="col-lg-6 mb-4" id="class-distribution-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="fas fa-chart-pie"></i> 类别分布</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="class-chart" width="400" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 图片尺寸分布 -->
+            <div class="col-lg-6 mb-4" id="size-distribution-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="fas fa-chart-bar"></i> 图片尺寸分布</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="size-chart" width="400" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 详细统计 -->
+            <div class="col-12 mb-4" id="detailed-stats-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="fas fa-table"></i> 详细统计</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>类别详情</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>类别</th>
+                                                <th>数量</th>
+                                                <th>占比</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="class-details">
+                                            <!-- 动态生成 -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>图片尺寸统计</h6>
+                                <div id="size-stats">
+                                    <!-- 动态生成 -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    $('#analysis-results').html(resultsHtml);
+    
+    // 绘制图表
+    drawClassDistributionChart(data.class_distribution);
+    drawSizeDistributionChart(data.image_sizes);
+    
+    // 填充详细统计
+    fillDetailedStats(data);
+    
+    // 根据选项显示/隐藏部分
+    updateVisibility();
+}
+
+function drawClassDistributionChart(classDistribution) {
+    const ctx = document.getElementById('class-chart').getContext('2d');
+    
+    if (classChart) {
+        classChart.destroy();
+    }
+    
+    const labels = Object.keys(classDistribution);
+    const data = Object.values(classDistribution);
+    const colors = [
+        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+        '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384'
+    ];
+    
+    classChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                            return `${context.label}: ${context.parsed} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function drawSizeDistributionChart(imageSizes) {
+    const ctx = document.getElementById('size-chart').getContext('2d');
+    
+    if (sizeChart) {
+        sizeChart.destroy();
+    }
+    
+    if (!imageSizes || imageSizes.length === 0) {
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#666';
+        ctx.textAlign = 'center';
+        ctx.fillText('暂无尺寸数据', ctx.canvas.width / 2, ctx.canvas.height / 2);
+        return;
+    }
+    
+    // 统计尺寸分布
+    const sizeStats = {};
+    imageSizes.forEach(size => {
+        const key = `${size[0]}x${size[1]}`;
+        sizeStats[key] = (sizeStats[key] || 0) + 1;
+    });
+    
+    const labels = Object.keys(sizeStats);
+    const data = Object.values(sizeStats);
+    
+    sizeChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '图片数量',
+                data: data,
+                backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
+function fillDetailedStats(data) {
+    // 填充类别详情
+    const totalObjects = Object.values(data.class_distribution).reduce((a, b) => a + b, 0);
+    let classDetailsHtml = '';
+    
+    Object.entries(data.class_distribution).forEach(([className, count]) => {
+        const percentage = ((count / totalObjects) * 100).toFixed(1);
+        classDetailsHtml += `
+            <tr>
+                <td>${className}</td>
+                <td>${count}</td>
+                <td>${percentage}%</td>
+            </tr>
+        `;
+    });
+    
+    $('#class-details').html(classDetailsHtml);
+    
+    // 填充尺寸统计
+    let sizeStatsHtml = '';
+    if (data.image_sizes && data.image_sizes.length > 0) {
+        const widths = data.image_sizes.map(s => s[0]);
+        const heights = data.image_sizes.map(s => s[1]);
+        
+        const avgWidth = Math.round(widths.reduce((a, b) => a + b, 0) / widths.length);
+        const avgHeight = Math.round(heights.reduce((a, b) => a + b, 0) / heights.length);
+        const minWidth = Math.min(...widths);
+        const maxWidth = Math.max(...widths);
+        const minHeight = Math.min(...heights);
+        const maxHeight = Math.max(...heights);
+        
+        sizeStatsHtml = `
+            <div class="row">
+                <div class="col-6">
+                    <small class="text-muted">平均尺寸</small><br>
+                    <strong>${avgWidth} × ${avgHeight}</strong>
+                </div>
+                <div class="col-6">
+                    <small class="text-muted">宽度范围</small><br>
+                    <strong>${minWidth} - ${maxWidth}</strong>
+                </div>
+                <div class="col-6 mt-2">
+                    <small class="text-muted">高度范围</small><br>
+                    <strong>${minHeight} - ${maxHeight}</strong>
+                </div>
+                <div class="col-6 mt-2">
+                    <small class="text-muted">样本数量</small><br>
+                    <strong>${data.image_sizes.length}</strong>
+                </div>
+            </div>
+        `;
+    } else {
+        sizeStatsHtml = '<p class="text-muted">暂无尺寸数据</p>';
+    }
+    
+    $('#size-stats').html(sizeStatsHtml);
+}
+
+function updateVisibility() {
+    const showClassDist = $('#show-class-distribution').is(':checked');
+    const showImageStats = $('#show-image-stats').is(':checked');
+    const showSizeDist = $('#show-size-distribution').is(':checked');
+    
+    $('#class-distribution-section').toggle(showClassDist);
+    $('#size-distribution-section').toggle(showSizeDist);
+    $('#detailed-stats-section').toggle(showImageStats);
+}
+
+function refreshAnalysis() {
+    if (currentDataset) {
+        analyzeDataset(currentDataset);
+    }
+}
+
+$(document).ready(function() {
+    // 监听选项变化
+    $('.form-check-input').on('change', function() {
+        updateVisibility();
+    });
+    
+    // 默认分析第一个数据集
+    setTimeout(() => {
+        analyzeDataset('dianziyuanjian_5');
+    }, 500);
+});
+</script>
+{% endblock %}

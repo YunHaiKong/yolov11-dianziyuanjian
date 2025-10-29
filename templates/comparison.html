@@ -1,0 +1,683 @@
+{% extends "base.html" %}
+
+{% block title %}模型比较 - YOLO电子元件检测系统{% endblock %}
+
+{% block page_title %}模型比较{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- 模型选择 -->
+    <div class="col-lg-3 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="fas fa-robot"></i> 选择模型</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">模型 A</label>
+                    <select class="form-select" id="model-a-select">
+                        <option value="">选择模型...</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">模型 B</label>
+                    <select class="form-select" id="model-b-select">
+                        <option value="">选择模型...</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary w-100" onclick="compareModels()">
+                    <i class="fas fa-balance-scale"></i> 开始比较
+                </button>
+            </div>
+        </div>
+        
+        <!-- 比较选项 -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="fas fa-cog"></i> 比较选项</h5>
+            </div>
+            <div class="card-body">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="compare-metrics" checked>
+                    <label class="form-check-label" for="compare-metrics">
+                        性能指标
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="compare-curves" checked>
+                    <label class="form-check-label" for="compare-curves">
+                        训练曲线
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="compare-confusion" checked>
+                    <label class="form-check-label" for="compare-confusion">
+                        混淆矩阵
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="compare-speed" checked>
+                    <label class="form-check-label" for="compare-speed">
+                        推理速度
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 比较结果 -->
+    <div class="col-lg-9">
+        <div id="comparison-results">
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="fas fa-balance-scale fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">选择两个模型开始比较</h5>
+                    <p class="text-muted">比较模型的性能指标、训练曲线和推理速度</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let modelAData = null;
+let modelBData = null;
+let comparisonCharts = {};
+
+$(document).ready(function() {
+    loadAvailableModels();
+});
+
+function loadAvailableModels() {
+    $.get('/api/models', function(data) {
+        const options = data.models.map(model => 
+            `<option value="${model.path}">${model.name} (${model.type})</option>`
+        ).join('');
+        
+        $('#model-a-select, #model-b-select').html(
+            '<option value="">选择模型...</option>' + options
+        );
+    }).fail(function() {
+        console.error('Failed to load models');
+    });
+}
+
+function compareModels() {
+    const modelAPath = $('#model-a-select').val();
+    const modelBPath = $('#model-b-select').val();
+    
+    if (!modelAPath || !modelBPath) {
+        alert('请选择两个模型进行比较');
+        return;
+    }
+    
+    if (modelAPath === modelBPath) {
+        alert('请选择不同的模型进行比较');
+        return;
+    }
+    
+    // 显示加载状态
+    $('#comparison-results').html(`
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">比较中...</span>
+                </div>
+                <p class="mt-2">正在比较模型...</p>
+            </div>
+        </div>
+    `);
+    
+    // 获取模型数据
+    console.log('模型A路径:', modelAPath);
+    console.log('模型B路径:', modelBPath);
+    console.log('编码后A路径:', encodeURIComponent(modelAPath));
+    console.log('编码后B路径:', encodeURIComponent(modelBPath));
+    
+    Promise.all([
+        $.ajax({
+            url: `/api/model_info/${encodeURIComponent(modelAPath)}`,
+            type: 'GET',
+            error: function(xhr, status, error) {
+                console.error('获取模型A信息失败:', error, xhr.responseText);
+            }
+        }),
+        $.ajax({
+            url: `/api/model_info/${encodeURIComponent(modelBPath)}`,
+            type: 'GET',
+            error: function(xhr, status, error) {
+                console.error('获取模型B信息失败:', error, xhr.responseText);
+            }
+        })
+    ]).then(function([dataA, dataB]) {
+        modelAData = dataA;
+        modelBData = dataB;
+        displayComparisonResults();
+    }).catch(function() {
+        $('#comparison-results').html(`
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                    <h5 class="text-warning">比较失败</h5>
+                    <p class="text-muted">无法获取模型信息</p>
+                </div>
+            </div>
+        `);
+    });
+}
+
+function displayComparisonResults() {
+    const resultsHtml = `
+        <div class="row">
+            <!-- 模型概览 -->
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="fas fa-info-circle"></i> 模型概览</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card border-primary">
+                                    <div class="card-header bg-primary text-white">
+                                        <h6 class="mb-0">模型 A: ${modelAData.name}</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <small class="text-muted">类型</small><br>
+                                                <strong>${modelAData.type || 'N/A'}</strong>
+                                            </div>
+                                            <div class="col-6">
+                                                <small class="text-muted">大小</small><br>
+                                                <strong>${formatFileSize(modelAData.size || 0)}</strong>
+                                            </div>
+                                            <div class="col-6 mt-2">
+                                                <small class="text-muted">创建时间</small><br>
+                                                <strong>${formatDate(modelAData.created || '')}</strong>
+                                            </div>
+                                            <div class="col-6 mt-2">
+                                                <small class="text-muted">训练轮数</small><br>
+                                                <strong>${modelAData.epochs || 'N/A'}</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card border-success">
+                                    <div class="card-header bg-success text-white">
+                                        <h6 class="mb-0">模型 B: ${modelBData.name}</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <small class="text-muted">类型</small><br>
+                                                <strong>${modelBData.type || 'N/A'}</strong>
+                                            </div>
+                                            <div class="col-6">
+                                                <small class="text-muted">大小</small><br>
+                                                <strong>${formatFileSize(modelBData.size || 0)}</strong>
+                                            </div>
+                                            <div class="col-6 mt-2">
+                                                <small class="text-muted">创建时间</small><br>
+                                                <strong>${formatDate(modelBData.created || '')}</strong>
+                                            </div>
+                                            <div class="col-6 mt-2">
+                                                <small class="text-muted">训练轮数</small><br>
+                                                <strong>${modelBData.epochs || 'N/A'}</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 性能指标比较 -->
+            <div class="col-12 mb-4" id="metrics-comparison-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="fas fa-chart-line"></i> 性能指标比较</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>指标</th>
+                                        <th class="text-primary">模型 A</th>
+                                        <th class="text-success">模型 B</th>
+                                        <th>差异</th>
+                                        <th>优势</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="metrics-table">
+                                    <!-- 动态生成 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 训练曲线比较 -->
+            <div class="col-12 mb-4" id="curves-comparison-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="fas fa-chart-area"></i> 训练曲线比较</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <canvas id="loss-comparison-chart" width="400" height="300"></canvas>
+                            </div>
+                            <div class="col-md-6">
+                                <canvas id="map-comparison-chart" width="400" height="300"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 推理速度比较 -->
+            <div class="col-12 mb-4" id="speed-comparison-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="fas fa-tachometer-alt"></i> 推理速度比较</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <canvas id="speed-chart" width="400" height="300"></canvas>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h6>速度测试结果</h6>
+                                        <div id="speed-details">
+                                            <!-- 动态生成 -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    $('#comparison-results').html(resultsHtml);
+    
+    // 填充比较数据
+    fillMetricsComparison();
+    drawComparisonCharts();
+    fillSpeedComparison();
+    
+    // 根据选项显示/隐藏部分
+    updateComparisonVisibility();
+}
+
+function fillMetricsComparison() {
+    const metricsA = modelAData.metrics || {};
+    const metricsB = modelBData.metrics || {};
+    
+    const metricNames = {
+        'mAP50': 'mAP@0.5',
+        'mAP50_95': 'mAP@0.5:0.95',
+        'precision': '精确率',
+        'recall': '召回率',
+        'f1': 'F1分数'
+    };
+    
+    let tableHtml = '';
+    
+    Object.entries(metricNames).forEach(([key, name]) => {
+        const valueA = metricsA[key] || 0;
+        const valueB = metricsB[key] || 0;
+        const diff = valueB - valueA;
+        const diffPercent = valueA > 0 ? ((diff / valueA) * 100).toFixed(1) : 'N/A';
+        
+        let advantageIcon = '';
+        let advantageText = '';
+        if (diff > 0.01) {
+            advantageIcon = '<i class="fas fa-arrow-up text-success"></i>';
+            advantageText = '模型 B';
+        } else if (diff < -0.01) {
+            advantageIcon = '<i class="fas fa-arrow-down text-danger"></i>';
+            advantageText = '模型 A';
+        } else {
+            advantageIcon = '<i class="fas fa-minus text-muted"></i>';
+            advantageText = '相近';
+        }
+        
+        tableHtml += `
+            <tr>
+                <td><strong>${name}</strong></td>
+                <td class="text-primary">${valueA.toFixed(3)}</td>
+                <td class="text-success">${valueB.toFixed(3)}</td>
+                <td>${diff >= 0 ? '+' : ''}${diff.toFixed(3)} (${diffPercent}%)</td>
+                <td>${advantageIcon} ${advantageText}</td>
+            </tr>
+        `;
+    });
+    
+    $('#metrics-table').html(tableHtml);
+}
+
+function drawComparisonCharts() {
+    // 绘制损失对比图
+    drawLossComparisonChart();
+    
+    // 绘制mAP对比图
+    drawMapComparisonChart();
+    
+    // 绘制速度对比图
+    drawSpeedChart();
+}
+
+function drawLossComparisonChart() {
+    const ctx = document.getElementById('loss-comparison-chart').getContext('2d');
+    
+    if (comparisonCharts.loss) {
+        comparisonCharts.loss.destroy();
+    }
+    
+    const lossDataA = modelAData.training_curves?.loss || [];
+    const lossDataB = modelBData.training_curves?.loss || [];
+    
+    comparisonCharts.loss = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: Array.from({length: Math.max(lossDataA.length, lossDataB.length)}, (_, i) => i + 1),
+            datasets: [
+                {
+                    label: '模型 A 损失',
+                    data: lossDataA,
+                    borderColor: '#007bff',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    fill: false,
+                    tension: 0.1
+                },
+                {
+                    label: '模型 B 损失',
+                    data: lossDataB,
+                    borderColor: '#28a745',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    fill: false,
+                    tension: 0.1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: '训练损失对比'
+                },
+                legend: {
+                    position: 'top'
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: '训练轮数'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: '损失值'
+                    }
+                }
+            }
+        }
+    });
+}
+
+function drawMapComparisonChart() {
+    const ctx = document.getElementById('map-comparison-chart').getContext('2d');
+    
+    if (comparisonCharts.map) {
+        comparisonCharts.map.destroy();
+    }
+    
+    const mapDataA = modelAData.training_curves?.mAP || [];
+    const mapDataB = modelBData.training_curves?.mAP || [];
+    
+    comparisonCharts.map = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: Array.from({length: Math.max(mapDataA.length, mapDataB.length)}, (_, i) => i + 1),
+            datasets: [
+                {
+                    label: '模型 A mAP',
+                    data: mapDataA,
+                    borderColor: '#007bff',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    fill: false,
+                    tension: 0.1
+                },
+                {
+                    label: '模型 B mAP',
+                    data: mapDataB,
+                    borderColor: '#28a745',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    fill: false,
+                    tension: 0.1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'mAP对比'
+                },
+                legend: {
+                    position: 'top'
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: '训练轮数'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'mAP值'
+                    },
+                    min: 0,
+                    max: 1
+                }
+            }
+        }
+    });
+}
+
+function drawSpeedChart() {
+    const ctx = document.getElementById('speed-chart').getContext('2d');
+    
+    if (comparisonCharts.speed) {
+        comparisonCharts.speed.destroy();
+    }
+    
+    const speedA = modelAData.inference_speed || {};
+    const speedB = modelBData.inference_speed || {};
+    
+    const labels = ['预处理', '推理', '后处理', '总时间'];
+    const dataA = [
+        speedA.preprocess || 0,
+        speedA.inference || 0,
+        speedA.postprocess || 0,
+        (speedA.preprocess || 0) + (speedA.inference || 0) + (speedA.postprocess || 0)
+    ];
+    const dataB = [
+        speedB.preprocess || 0,
+        speedB.inference || 0,
+        speedB.postprocess || 0,
+        (speedB.preprocess || 0) + (speedB.inference || 0) + (speedB.postprocess || 0)
+    ];
+    
+    comparisonCharts.speed = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: '模型 A (ms)',
+                    data: dataA,
+                    backgroundColor: 'rgba(0, 123, 255, 0.6)',
+                    borderColor: '#007bff',
+                    borderWidth: 1
+                },
+                {
+                    label: '模型 B (ms)',
+                    data: dataB,
+                    backgroundColor: 'rgba(40, 167, 69, 0.6)',
+                    borderColor: '#28a745',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: '推理速度对比'
+                },
+                legend: {
+                    position: 'top'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: '时间 (毫秒)'
+                    }
+                }
+            }
+        }
+    });
+}
+
+function fillSpeedComparison() {
+    const speedA = modelAData.inference_speed || {};
+    const speedB = modelBData.inference_speed || {};
+    
+    const totalA = (speedA.preprocess || 0) + (speedA.inference || 0) + (speedA.postprocess || 0);
+    const totalB = (speedB.preprocess || 0) + (speedB.inference || 0) + (speedB.postprocess || 0);
+    
+    const fpsA = totalA > 0 ? (1000 / totalA).toFixed(1) : 'N/A';
+    const fpsB = totalB > 0 ? (1000 / totalB).toFixed(1) : 'N/A';
+    
+    const speedDetailsHtml = `
+        <div class="row">
+            <div class="col-6">
+                <div class="card border-primary">
+                    <div class="card-body text-center">
+                        <h5 class="text-primary">${fpsA}</h5>
+                        <small>模型 A FPS</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="card border-success">
+                    <div class="card-body text-center">
+                        <h5 class="text-success">${fpsB}</h5>
+                        <small>模型 B FPS</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 mt-3">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>阶段</th>
+                            <th>模型 A</th>
+                            <th>模型 B</th>
+                            <th>差异</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>预处理</td>
+                            <td>${(speedA.preprocess || 0).toFixed(2)}ms</td>
+                            <td>${(speedB.preprocess || 0).toFixed(2)}ms</td>
+                            <td>${((speedB.preprocess || 0) - (speedA.preprocess || 0)).toFixed(2)}ms</td>
+                        </tr>
+                        <tr>
+                            <td>推理</td>
+                            <td>${(speedA.inference || 0).toFixed(2)}ms</td>
+                            <td>${(speedB.inference || 0).toFixed(2)}ms</td>
+                            <td>${((speedB.inference || 0) - (speedA.inference || 0)).toFixed(2)}ms</td>
+                        </tr>
+                        <tr>
+                            <td>后处理</td>
+                            <td>${(speedA.postprocess || 0).toFixed(2)}ms</td>
+                            <td>${(speedB.postprocess || 0).toFixed(2)}ms</td>
+                            <td>${((speedB.postprocess || 0) - (speedA.postprocess || 0)).toFixed(2)}ms</td>
+                        </tr>
+                        <tr class="table-active">
+                            <td><strong>总计</strong></td>
+                            <td><strong>${totalA.toFixed(2)}ms</strong></td>
+                            <td><strong>${totalB.toFixed(2)}ms</strong></td>
+                            <td><strong>${(totalB - totalA).toFixed(2)}ms</strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    
+    $('#speed-details').html(speedDetailsHtml);
+}
+
+function updateComparisonVisibility() {
+    const showMetrics = $('#compare-metrics').is(':checked');
+    const showCurves = $('#compare-curves').is(':checked');
+    const showConfusion = $('#compare-confusion').is(':checked');
+    const showSpeed = $('#compare-speed').is(':checked');
+    
+    $('#metrics-comparison-section').toggle(showMetrics);
+    $('#curves-comparison-section').toggle(showCurves);
+    $('#speed-comparison-section').toggle(showSpeed);
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('zh-CN');
+}
+
+// 监听选项变化
+$(document).ready(function() {
+    $('.form-check-input').on('change', function() {
+        updateComparisonVisibility();
+    });
+});
+</script>
+{% endblock %}

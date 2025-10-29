@@ -1,0 +1,5 @@
+path: E:\LLM-Project\yolov11\datesets\dianziyuanjian_4
+train: train
+val: val
+nc: 4
+names: ['聚酯电容', '热敏电阻', '三极管完好', '三极管损坏']

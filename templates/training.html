@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+
+{% block title %}训练监控 - YOLO电子元件检测系统{% endblock %}
+
+{% block page_title %}训练监控{% endblock %}
+
+{% block page_actions %}
+<button class="btn btn-primary" onclick="refreshTrainingList()">
+    <i class="fas fa-sync-alt"></i> 刷新
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- 训练列表 -->
+    <div class="col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="fas fa-list"></i> 训练记录</h5>
+            </div>
+            <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                {% if runs %}
+                    {% for run in runs %}
+                    <div class="training-item mb-3 p-3 border rounded cursor-pointer" 
+                         onclick="loadTrainingDetails('{{ run.project }}', '{{ run.run }}')" 
+                         data-project="{{ run.project }}" data-run="{{ run.run }}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">{{ run.project }}</h6>
+                                <small class="text-muted">{{ run.run }}</small>
+                            </div>
+                            <small class="text-muted">{{ run.modified.strftime('%m-%d %H:%M') }}</small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted text-center">暂无训练记录</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 训练详情 -->
+    <div class="col-lg-8">
+        <div id="training-details">
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">选择一个训练记录查看详情</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 训练详情模板 -->
+<div id="training-detail-template" style="display: none;">
+    <div class="row">
+        <!-- 训练指标 -->
+        <div class="col-12 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0"><i class="fas fa-chart-bar"></i> 训练指标</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row" id="metrics-cards">
+                        <!-- 动态生成指标卡片 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 训练曲线 -->
+        <div class="col-12 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0"><i class="fas fa-chart-line"></i> 训练曲线</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="training-chart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 训练图表 -->
+        <div class="col-12 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0"><i class="fas fa-images"></i> 训练图表</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row" id="training-plots">
+                        <!-- 动态生成图表 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 模型文件 -->
+        <div class="col-12 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0"><i class="fas fa-download"></i> 模型文件</h5>
+                </div>
+                <div class="card-body">
+                    <div id="model-weights">
+                        <!-- 动态生成模型文件列表 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let trainingChart = null;
+
+$(document).ready(function() {
+    // 如果有训练记录，默认加载第一个
+    const firstItem = $('.training-item').first();
+    if (firstItem.length > 0) {
+        const project = firstItem.data('project');
+        const run = firstItem.data('run');
+        loadTrainingDetails(project, run);
+        firstItem.addClass('border-primary');
+    }
+});
+
+function refreshTrainingList() {
+    location.reload();
+}
+
+function loadTrainingDetails(project, run) {
+    // 更新选中状态
+    $('.training-item').removeClass('border-primary');
+    $(`.training-item[data-project="${project}"][data-run="${run}"]`).addClass('border-primary');
+    
+    // 显示加载状态
+    $('#training-details').html(`
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                </div>
+                <p class="mt-2">加载训练详情...</p>
+            </div>
+        </div>
+    `);
+    
+    // 加载训练结果
+    $.get(`/api/training_results/${project}/${run}`, function(data) {
+        displayTrainingDetails(data, project, run);
+    }).fail(function() {
+        $('#training-details').html(`
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                    <h5 class="text-muted">加载失败</h5>
+                    <p class="text-muted">无法加载训练详情</p>
+                </div>
+            </div>
+        `);
+    });
+}
+
+function displayTrainingDetails(data, project, run) {
+    const template = $('#training-detail-template').html();
+    $('#training-details').html(template);
+    
+    // 显示指标卡片
+    if (data.metrics && data.metrics.length > 0) {
+        const lastMetric = data.metrics[data.metrics.length - 1];
+        const metricsHtml = `
+            <div class="col-md-3 mb-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h6>mAP50</h6>
+                        <h4>${(lastMetric['metrics/mAP50(B)'] || 0).toFixed(3)}</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h6>mAP50-95</h6>
+                        <h4>${(lastMetric['metrics/mAP50-95(B)'] || 0).toFixed(3)}</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h6>Precision</h6>
+                        <h4>${(lastMetric['metrics/precision(B)'] || 0).toFixed(3)}</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <h6>Recall</h6>
+                        <h4>${(lastMetric['metrics/recall(B)'] || 0).toFixed(3)}</h4>
+                    </div>
+                </div>
+            </div>
+        `;
+        $('#metrics-cards').html(metricsHtml);
+        
+        // 绘制训练曲线
+        drawTrainingChart(data.metrics);
+    }
+    
+    // 显示训练图表
+    if (data.plots && data.plots.length > 0) {
+        let plotsHtml = '';
+        data.plots.forEach(plot => {
+            plotsHtml += `
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">${plot.name}</h6>
+                        </div>
+                        <div class="card-body text-center">
+                            <img src="/${plot.path}" class="img-fluid" alt="${plot.name}" 
+                                 style="max-height: 300px; cursor: pointer;" 
+                                 onclick="showImageModal('/${plot.path}', '${plot.name}')">
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        $('#training-plots').html(plotsHtml);
+    }
+    
+    // 显示模型文件
+    if (data.weights && data.weights.length > 0) {
+        let weightsHtml = '<div class="list-group">';
+        data.weights.forEach(weight => {
+            const sizeKB = (weight.size / 1024).toFixed(1);
+            weightsHtml += `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-file"></i> ${weight.name}
+                        <small class="text-muted d-block">${sizeKB} KB</small>
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary" onclick="downloadModel('${weight.path}')">
+                        <i class="fas fa-download"></i> 下载
+                    </button>
+                </div>
+            `;
+        });
+        weightsHtml += '</div>';
+        $('#model-weights').html(weightsHtml);
+    }
+}
+
+function drawTrainingChart(metrics) {
+    const ctx = document.getElementById('training-chart').getContext('2d');
+    
+    if (trainingChart) {
+        trainingChart.destroy();
+    }
+    
+    const epochs = metrics.map((_, index) => index + 1);
+    const map50 = metrics.map(m => m['metrics/mAP50(B)'] || 0);
+    const map50_95 = metrics.map(m => m['metrics/mAP50-95(B)'] || 0);
+    const precision = metrics.map(m => m['metrics/precision(B)'] || 0);
+    const recall = metrics.map(m => m['metrics/recall(B)'] || 0);
+    
+    trainingChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: epochs,
+            datasets: [
+                {
+                    label: 'mAP50',
+                    data: map50,
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                    tension: 0.1
+                },
+                {
+                    label: 'mAP50-95',
+                    data: map50_95,
+                    borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    tension: 0.1
+                },
+                {
+                    label: 'Precision',
+                    data: precision,
+                    borderColor: 'rgb(54, 162, 235)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                    tension: 0.1
+                },
+                {
+                    label: 'Recall',
+                    data: recall,
+                    borderColor: 'rgb(255, 205, 86)',
+                    backgroundColor: 'rgba(255, 205, 86, 0.1)',
+                    tension: 0.1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: '训练指标变化'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 1
+                }
+            }
+        }
+    });
+}
+
+function showImageModal(imagePath, title) {
+    const modal = `
+        <div class="modal fade" id="imageModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">${title}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body text-center">
+                        <img src="${imagePath}" class="img-fluid" alt="${title}">
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 移除已存在的模态框
+    $('#imageModal').remove();
+    
+    // 添加新模态框并显示
+    $('body').append(modal);
+    $('#imageModal').modal('show');
+}
+
+function downloadModel(modelPath) {
+    // 创建下载链接
+    const link = document.createElement('a');
+    link.href = '/' + modelPath;
+    link.download = modelPath.split('/').pop();
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+</script>
+{% endblock %}
