@@ -115,21 +115,24 @@ python app.py
 
 **首页**: 项目介绍和功能导航
 
-![](C:\Users\23896\Documents\图片1.png)
+<img width="1268" height="643" alt="图片1" src="https://github.com/user-attachments/assets/c07ab5a7-715f-48b2-9816-210effd27388" />
 
 **模型训练**: 在线训练配置和监控
 
-![](C:\Users\23896\Documents\图片2.png)
+<img width="1268" height="638" alt="图片2" src="https://github.com/user-attachments/assets/d47d44e3-0738-409c-a697-b6096cb3e349" />
 
 **预测分析**: 图像和视频检测
 
-![](C:\Users\23896\Documents\图片3.png)
-
-**模型测试**: 多模型性能对比![](C:\Users\23896\Documents\图片4.png)
-
-**结果分析**: 训练结果可视化![](C:\Users\23896\Documents\图片5.png)
+<img width="1268" height="637" alt="图片3" src="https://github.com/user-attachments/assets/c39c458a-2dce-4fa8-aa20-2d29ef1e6af1" />
 
 
+**模型测试**: 多模型性能对比
+
+<img width="1268" height="651" alt="图片4" src="https://github.com/user-attachments/assets/cd145ff4-08fe-4c00-ac35-c96949ea17e5" />
+
+**结果分析**: 训练结果可视化
+
+<img width="1268" height="654" alt="图片5" src="https://github.com/user-attachments/assets/596b4169-671f-4178-bc87-6f87a5aa81db" />
 
 ### API接口
 
@@ -231,5 +234,6 @@ yolo predict model=runs/detect/train/weights/best.pt source=test_image.jpg
 - 所有贡献者和数据标注人员
 
 ---
+
 
 **注意**: 本项目仍在积极开发中，API和功能可能会有变动。
